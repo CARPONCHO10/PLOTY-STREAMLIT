@@ -19,54 +19,54 @@ st.title("📊 Análisis de Usuarios: API → SQLite → Plotly")
 st.markdown("---")
 
 # Configuración
-DB_NAME = 'usuarios_streamlit.db'
-API_URL = 'https://jsonplaceholder.typicode.com/users'
+NOMBRE_BD = 'usuarios_streamlit.db'
+URL_API = 'https://jsonplaceholder.typicode.com/users'
 
-# Sidebar para controles
+# Barra lateral para controles
 st.sidebar.header("⚙️ Configuración")
 
 # 1) Consumir la API
 st.sidebar.subheader("1. Obtener Datos")
-if st.sidebar.button("🔄 Actualizar datos desde API"):
-    with st.spinner("Obteniendo datos de la API..."):
+if st.sidebar.button("🔄 Actualizar datos desde la API"):
+    with st.spinner("Obteniendo datos desde la API..."):
         try:
-            response = requests.get(API_URL, timeout=20)
-            if response.status_code == 200:
-                users = response.json()
-                st.sidebar.success(f"✅ {len(users)} usuarios obtenidos")
+            respuesta = requests.get(URL_API, timeout=20)
+            if respuesta.status_code == 200:
+                usuarios = respuesta.json()
+                st.sidebar.success(f"✅ {len(usuarios)} usuarios obtenidos correctamente")
                 
                 # Guardar en SQLite
-                conn = sqlite3.connect(DB_NAME)
-                cur = conn.cursor()
+                conexion = sqlite3.connect(NOMBRE_BD)
+                cursor = conexion.cursor()
                 
                 # Reiniciar tabla
-                cur.execute('DROP TABLE IF EXISTS users;')
-                cur.execute('''
-                CREATE TABLE IF NOT EXISTS users (
+                cursor.execute('DROP TABLE IF EXISTS usuarios;')
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS usuarios (
                     id INTEGER PRIMARY KEY,
-                    name TEXT,
-                    username TEXT,
-                    email TEXT,
-                    phone TEXT,
-                    website TEXT
+                    nombre TEXT,
+                    usuario TEXT,
+                    correo TEXT,
+                    telefono TEXT,
+                    sitio_web TEXT
                 )
                 ''')
                 
-                for u in users:
-                    cur.execute('''
-                        INSERT OR REPLACE INTO users (id, name, username, email, phone, website)
+                for u in usuarios:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO usuarios (id, nombre, usuario, correo, telefono, sitio_web)
                         VALUES (?, ?, ?, ?, ?, ?)
                     ''', (
                         u.get('id'), u.get('name'), u.get('username'), 
                         u.get('email'), u.get('phone'), u.get('website')
                     ))
                 
-                conn.commit()
-                conn.close()
+                conexion.commit()
+                conexion.close()
                 st.success("✅ Datos guardados exitosamente en SQLite")
                 
             else:
-                st.error(f"❌ Error al consumir la API ({response.status_code})")
+                st.error(f"❌ Error al consumir la API ({respuesta.status_code})")
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
 
@@ -74,22 +74,22 @@ if st.sidebar.button("🔄 Actualizar datos desde API"):
 st.sidebar.subheader("2. Cargar Datos")
 if st.sidebar.button("📂 Cargar desde SQLite"):
     try:
-        conn = sqlite3.connect(DB_NAME)
-        df = pd.read_sql_query('SELECT * FROM users', conn)
-        conn.close()
+        conexion = sqlite3.connect(NOMBRE_BD)
+        df = pd.read_sql_query('SELECT * FROM usuarios', conexion)
+        conexion.close()
         
         if not df.empty:
-            # Convertir a tipos compatibles con pandas 2.3.3
+            # Convertir tipos de datos compatibles
             df = df.astype({
                 'id': 'int64',
-                'name': 'string',
-                'username': 'string', 
-                'email': 'string',
-                'phone': 'string',
-                'website': 'string'
+                'nombre': 'string',
+                'usuario': 'string', 
+                'correo': 'string',
+                'telefono': 'string',
+                'sitio_web': 'string'
             })
             st.session_state.df = df
-            st.sidebar.success(f"✅ {len(df)} registros cargados")
+            st.sidebar.success(f"✅ {len(df)} registros cargados correctamente")
         else:
             st.sidebar.warning("⚠️ No hay datos en la base de datos")
     except Exception as e:
@@ -97,7 +97,7 @@ if st.sidebar.button("📂 Cargar desde SQLite"):
 
 # Verificar si hay datos cargados
 if 'df' not in st.session_state:
-    st.info("👈 Usa los controles en la sidebar para cargar los datos primero")
+    st.info("👈 Usa los controles en la barra lateral para cargar los datos primero")
     st.stop()
 
 df = st.session_state.df
@@ -108,49 +108,48 @@ st.header("📋 Datos de Usuarios")
 col1, col2, col3 = st.columns(3)
 col1.metric("Total de Usuarios", len(df))
 col2.metric("Columnas", df.shape[1])
-col3.metric("Dominios Únicos", df['email'].str.split('@').str[1].nunique())
+col3.metric("Dominios Únicos", df['correo'].str.split('@').str[1].nunique())
 
 # Mostrar tabla de datos
 with st.expander("📊 Ver tabla de datos completa"):
     st.dataframe(df, use_container_width=True)
 
-# 3) Feature Engineering - Ajustado para pandas 2.3.3
+# 3) Ingeniería de características
 st.header("🔧 Ingeniería de Características")
 
-# Crear columnas adicionales con manejo seguro de tipos
-df['name_length'] = df['name'].str.len().fillna(0).astype('int64')
-df['email_domain'] = df['email'].str.split('@').str[1].str.lower()
+# Crear columnas adicionales
+df['longitud_nombre'] = df['nombre'].str.len().fillna(0).astype('int64')
+df['dominio_correo'] = df['correo'].str.split('@').str[1].str.lower()
 
 # Mostrar datos con nuevas características
 with st.expander("🔍 Ver datos con características adicionales"):
-    st.dataframe(df[['id', 'name', 'name_length', 'email', 'email_domain']], use_container_width=True)
+    st.dataframe(df[['id', 'nombre', 'longitud_nombre', 'correo', 'dominio_correo']], use_container_width=True)
 
 # 4) Visualizaciones con Plotly
 st.header("📈 Visualizaciones Interactivas")
 
 # Seleccionar tipo de gráfico
-chart_type = st.selectbox(
+tipo_grafico = st.selectbox(
     "Selecciona el tipo de gráfico:",
-    ["Histograma", "Barras Horizontales", "Gráfico de Donut", "Tabla Interactiva", "Estadísticas Avanzadas"]
+    ["Histograma", "Barras Horizontales", "Gráfico de Dona", "Tabla Interactiva", "Estadísticas Avanzadas"]
 )
 
 # Contenedor para gráficos
-chart_container = st.container()
+contenedor_graficos = st.container()
 
-with chart_container:
-    if chart_type == "Histograma":
+with contenedor_graficos:
+    if tipo_grafico == "Histograma":
         st.subheader("📊 Distribución de Longitud de Nombres")
         
-        # Personalizar histograma
         col1, col2 = st.columns(2)
         with col1:
-            nbins = st.slider("Número de bins", min_value=5, max_value=20, value=10)
+            nbins = st.slider("Número de barras", min_value=5, max_value=20, value=10)
         with col2:
             color = st.color_picker("Color del histograma", "#636efa")
         
         fig = px.histogram(
             df, 
-            x='name_length', 
+            x='longitud_nombre', 
             nbins=nbins,
             title='Distribución de caracteres en los nombres',
             color_discrete_sequence=[color]
@@ -162,40 +161,37 @@ with chart_container:
         )
         st.plotly_chart(fig, use_container_width=True)
         
-        # Estadísticas
-        st.write(f"**Estadísticas:**")
+        st.write("**Estadísticas:**")
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Mínimo", int(df['name_length'].min()))
-        col2.metric("Máximo", int(df['name_length'].max()))
-        col3.metric("Promedio", f"{df['name_length'].mean():.1f}")
-        col4.metric("Mediana", int(df['name_length'].median()))
+        col1.metric("Mínimo", int(df['longitud_nombre'].min()))
+        col2.metric("Máximo", int(df['longitud_nombre'].max()))
+        col3.metric("Promedio", f"{df['longitud_nombre'].mean():.1f}")
+        col4.metric("Mediana", int(df['longitud_nombre'].median()))
     
-    elif chart_type == "Barras Horizontales":
+    elif tipo_grafico == "Barras Horizontales":
         st.subheader("📊 Usuarios por Dominio de Correo")
         
-        # Calcular conteos de forma segura
-        dom_counts = df['email_domain'].value_counts().reset_index()
-        dom_counts.columns = ['email_domain', 'count']
+        dom_counts = df['dominio_correo'].value_counts().reset_index()
+        dom_counts.columns = ['dominio_correo', 'cantidad']
         
-        # Personalización
         col1, col2 = st.columns(2)
         with col1:
-            sort_order = st.radio("Ordenar por:", ["Cantidad", "Alfabético"])
-            if sort_order == "Alfabético":
-                dom_counts = dom_counts.sort_values('email_domain')
+            orden = st.radio("Ordenar por:", ["Cantidad", "Alfabético"])
+            if orden == "Alfabético":
+                dom_counts = dom_counts.sort_values('dominio_correo')
             else:
-                dom_counts = dom_counts.sort_values('count', ascending=True)
+                dom_counts = dom_counts.sort_values('cantidad', ascending=True)
         
         with col2:
-            bar_color = st.color_picker("Color de barras", "#636efa")
+            color_barras = st.color_picker("Color de barras", "#636efa")
         
         fig = px.bar(
             dom_counts, 
-            x='count', 
-            y='email_domain', 
+            x='cantidad', 
+            y='dominio_correo', 
             orientation='h',
             title='Usuarios por dominio de correo electrónico',
-            color_discrete_sequence=[bar_color]
+            color_discrete_sequence=[color_barras]
         )
         fig.update_layout(
             xaxis_title='Cantidad de usuarios',
@@ -203,71 +199,66 @@ with chart_container:
         )
         st.plotly_chart(fig, use_container_width=True)
     
-    elif chart_type == "Gráfico de Donut":
-        st.subheader("🍩 Distribución de Dominios de Email")
+    elif tipo_grafico == "Gráfico de Dona":
+        st.subheader("🍩 Distribución de Dominios de Correo")
         
-        # Calcular conteos
-        dom_counts = df['email_domain'].value_counts().reset_index()
-        dom_counts.columns = ['email_domain', 'count']
+        dom_counts = df['dominio_correo'].value_counts().reset_index()
+        dom_counts.columns = ['dominio_correo', 'cantidad']
         
-        # Personalización
         col1, col2 = st.columns(2)
         with col1:
-            hole_size = st.slider("Tamaño del agujero", 0.0, 0.8, 0.4)
+            tam_agujero = st.slider("Tamaño del agujero", 0.0, 0.8, 0.4)
         with col2:
-            show_values = st.checkbox("Mostrar valores", value=True)
+            mostrar_valores = st.checkbox("Mostrar valores", value=True)
         
         fig = px.pie(
             dom_counts, 
-            names='email_domain', 
-            values='count', 
-            hole=hole_size,
-            title='Distribución de dominios de email'
+            names='dominio_correo', 
+            values='cantidad', 
+            hole=tam_agujero,
+            title='Distribución de dominios de correo'
         )
         
-        if show_values:
+        if mostrar_valores:
             fig.update_traces(textposition='inside', textinfo='percent+label')
         else:
             fig.update_traces(textposition='inside', textinfo='percent')
             
         st.plotly_chart(fig, use_container_width=True)
     
-    elif chart_type == "Tabla Interactiva":
+    elif tipo_grafico == "Tabla Interactiva":
         st.subheader("📋 Tabla de Usuarios")
         
-        # Filtros
         col1, col2 = st.columns(2)
         with col1:
-            min_length = st.number_input("Longitud mínima del nombre", 
+            min_longitud = st.number_input("Longitud mínima del nombre", 
                                        min_value=0, 
-                                       max_value=int(df['name_length'].max()), 
+                                       max_value=int(df['longitud_nombre'].max()), 
                                        value=0)
         with col2:
-            selected_domains = st.multiselect(
+            dominios_seleccionados = st.multiselect(
                 "Filtrar por dominio:",
-                options=df['email_domain'].unique().tolist(),
-                default=df['email_domain'].unique().tolist()
+                options=df['dominio_correo'].unique().tolist(),
+                default=df['dominio_correo'].unique().tolist()
             )
         
-        # Aplicar filtros
-        filtered_df = df[
-            (df['name_length'] >= min_length) & 
-            (df['email_domain'].isin(selected_domains))
+        filtrado = df[
+            (df['longitud_nombre'] >= min_longitud) & 
+            (df['dominio_correo'].isin(dominios_seleccionados))
         ]
         
-        st.write(f"**Mostrando {len(filtered_df)} de {len(df)} usuarios**")
+        st.write(f"**Mostrando {len(filtrado)} de {len(df)} usuarios**")
         
-        # Crear tabla interactiva
         fig = go.Figure(data=[go.Table(
             header=dict(
-                values=list(filtered_df[['id','name','username','email','phone','website']].columns),
+                values=list(filtrado[['id','nombre','usuario','correo','telefono','sitio_web']].columns),
                 fill_color='lightblue',
                 align='left',
                 font=dict(size=12, color='black')
             ),
             cells=dict(
-                values=[filtered_df['id'], filtered_df['name'], filtered_df['username'], 
-                       filtered_df['email'], filtered_df['phone'], filtered_df['website']],
+                values=[filtrado['id'], filtrado['nombre'], filtrado['usuario'], 
+                       filtrado['correo'], filtrado['telefono'], filtrado['sitio_web']],
                 align='left',
                 font=dict(size=11)
             )
@@ -275,22 +266,21 @@ with chart_container:
         fig.update_layout(title='Usuarios (tabla filtrada)', height=400)
         st.plotly_chart(fig, use_container_width=True)
         
-    elif chart_type == "Estadísticas Avanzadas":
+    elif tipo_grafico == "Estadísticas Avanzadas":
         st.subheader("📈 Análisis Estadístico Avanzado")
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.write("**Resumen Estadístico de Longitud de Nombres:**")
-            st.dataframe(df['name_length'].describe(), use_container_width=True)
+            st.dataframe(df['longitud_nombre'].describe(), use_container_width=True)
             
         with col2:
             st.write("**Top 5 Nombres Más Largos:**")
-            top_long_names = df.nlargest(5, 'name_length')[['name', 'name_length']]
-            st.dataframe(top_long_names, use_container_width=True)
+            top_long = df.nlargest(5, 'longitud_nombre')[['nombre', 'longitud_nombre']]
+            st.dataframe(top_long, use_container_width=True)
         
-        # Gráfico de caja
-        fig_box = px.box(df, y='name_length', title='Distribución - Diagrama de Caja')
+        fig_box = px.box(df, y='longitud_nombre', title='Distribución - Diagrama de Caja')
         st.plotly_chart(fig_box, use_container_width=True)
 
 # 5) Exportar datos
@@ -308,8 +298,7 @@ with col1:
     )
 
 with col2:
-    # Exportar estadísticas
-    stats_csv = df['name_length'].describe().to_csv()
+    stats_csv = df['longitud_nombre'].describe().to_csv()
     st.download_button(
         label="📊 Descargar Estadísticas",
         data=stats_csv,
@@ -333,9 +322,9 @@ st.sidebar.info("""
 - Numpy 2.3.3 ✅
 - Plotly 5.17.0+ ✅
 
-**Fuente de datos:** JSONPlaceholder API
+**Fuente de datos:** API JSONPlaceholder
 """)
 
-# Footer
+# Pie de página
 st.markdown("---")
-st.caption("Desarrollado por Steven Carpio realizado con Streamlit | Compatible con las versiones específicas")
+st.caption("Desarrollado por Steven Carpio | Realizado con Streamlit | Totalmente en Español 🇪🇨")
