@@ -131,7 +131,8 @@ st.header("📈 Visualizaciones Interactivas")
 # Seleccionar tipo de gráfico
 tipo_grafico = st.selectbox(
     "Selecciona el tipo de gráfico:",
-    ["Histograma", "Barras Horizontales", "Gráfico de Dona", "Tabla Interactiva", "Estadísticas Avanzadas"]
+    ["Histograma", "Barras Horizontales", "Gráfico de Dona", "Tabla Interactiva", 
+     "Estadísticas Avanzadas", "Gráfico de Violín", "Gráfico de Dispersión"]
 )
 
 # Contenedor para gráficos
@@ -283,6 +284,45 @@ with contenedor_graficos:
         fig_box = px.box(df, y='longitud_nombre', title='Distribución - Diagrama de Caja')
         st.plotly_chart(fig_box, use_container_width=True)
 
+    elif tipo_grafico == "Gráfico de Violín":
+        st.subheader("🎻 Distribución de Longitud de Nombres por Dominio")
+        
+        dominios_sel = st.multiselect(
+            "Selecciona dominios a mostrar:",
+            options=df['dominio_correo'].unique().tolist(),
+            default=df['dominio_correo'].unique().tolist()
+        )
+        
+        df_violin = df[df['dominio_correo'].isin(dominios_sel)]
+        
+        fig_violin = px.violin(
+            df_violin,
+            x='dominio_correo',
+            y='longitud_nombre',
+            color='dominio_correo',
+            box=True,
+            points='all',
+            title='Distribución de Longitud de Nombres por Dominio de Correo'
+        )
+        fig_violin.update_layout(xaxis_title='Dominio', yaxis_title='Longitud del Nombre', showlegend=False)
+        st.plotly_chart(fig_violin, use_container_width=True)
+    
+    elif tipo_grafico == "Gráfico de Dispersión":
+        st.subheader("📍 Dispersión: Longitud de Nombres vs ID")
+        
+        color_disp = st.color_picker("Color de puntos", "#EF553B")
+        
+        fig_scatter = px.scatter(
+            df,
+            x='id',
+            y='longitud_nombre',
+            color_discrete_sequence=[color_disp],
+            title='Dispersión de Longitud de Nombres según ID',
+            hover_data=['nombre', 'correo']
+        )
+        fig_scatter.update_layout(xaxis_title='ID', yaxis_title='Longitud del Nombre')
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
 # 5) Exportar datos
 st.header("💾 Exportar Datos")
 
@@ -327,4 +367,4 @@ st.sidebar.info("""
 
 # Pie de página
 st.markdown("---")
-st.caption("Desarrollado por Steven Carpio | Realizado con Streamlit | Totalmente en Español 🇪🇨")
+st.caption("Desarrollado por Steven Carpio | Realizado con Streamlit")
